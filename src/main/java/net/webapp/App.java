@@ -2,7 +2,7 @@ package net.webapp;
 
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
-import org.jdbi.v3.sqlobject.statement.SqlUpdate;
+
 import spark.ModelAndView;
 import spark.template.handlebars.HandlebarsTemplateEngine;
 
@@ -15,10 +15,8 @@ import static spark.Spark.*;
 
 interface UserService {
 
-    @SqlUpdate("INSERT INTO greet(name) VALUES (?)")
     void addUser(String username);
 
-    @SqlUpdate("select name from greet")
     List<String> users();
 
     int userCount();
@@ -101,11 +99,14 @@ public class App {
 
     public static void main(String[] args) {
 
-        Jdbi jdbi = Jdbi.create("jdbc:h2:mem:greetdb", "sa", "");
+        String dbDiskURL = "jdbc:h2:~/greetdb";
+        String dbMemoryURL = "jdbc:h2:mem:greetdb";
+
+        Jdbi jdbi = Jdbi.create(dbDiskURL, "sa", "");
 
         Handle handle = jdbi.open();
 
-        handle.execute("create table greet ( id integer identity, name varchar(50) )");
+        handle.execute("create table if not exists greet ( id integer identity, name varchar(50) )");
 
         UserService userService = new UserServiceWithJdbi(handle);
 
