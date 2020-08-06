@@ -23,6 +23,47 @@ interface UserService {
 
 }
 
+class UserServiceWithPG implements UserService {
+
+    Jdbi jdbi;
+
+    UserServiceWithPG(Jdbi jdbi) {
+        this.jdbi = jdbi;
+    }
+
+    private boolean userExists(String username) {
+
+        int count = jdbi.withHandle(h -> h.select("select count(*) from person where first_name = ?", username)
+                .mapTo(int.class)
+                .findOnly());
+        return count > 0;
+    }
+
+    @Override
+    public void addUser(String username) {
+        if (!"".equals(username) &&  !userExists(username)) {
+            this.jdbi.withHandle(handle ->
+                    handle.execute("insert into person (first_name, counter) values (?,?)", username, 0));
+        }
+    }
+
+    @Override
+    public List<String> users() {
+        return this.jdbi.withHandle(h -> h
+                .createQuery("select first_name from person")
+                .mapTo(String.class)
+                .list());
+    }
+
+    @Override
+    public int userCount() {
+        return this.jdbi.withHandle(h -> h
+                .select("select count(*) from person")
+                .mapTo(int.class)
+                .findOnly());
+    }
+}
+
 class UserServiceWithJdbi implements UserService {
 
     Handle handle;
@@ -31,7 +72,7 @@ class UserServiceWithJdbi implements UserService {
         this.handle = handle;
     }
 
-    private boolean userExists(String  userName) {
+    private boolean userExists(String userName) {
         int count = handle.select("select count(*) from greet where name = ?", userName)
                 .mapTo(int.class)
                 .findOnly();
@@ -50,16 +91,16 @@ class UserServiceWithJdbi implements UserService {
     @Override
     public List<String> users() {
         List<String> names = handle.createQuery("select name from greet")
-                        .mapTo(String.class)
-                        .list();
+                .mapTo(String.class)
+                .list();
         return names;
     }
 
     @Override
     public int userCount() {
         int count = handle.select("select count(*) from greet")
-                        .mapTo(int.class)
-                        .findOnly();
+                .mapTo(int.class)
+                .findOnly();
         return count;
     }
 }
@@ -99,16 +140,23 @@ public class App {
 
     public static void main(String[] args) {
 
-        String dbDiskURL = "jdbc:h2:~/greetdb";
-        String dbMemoryURL = "jdbc:h2:mem:greetdb";
+        String dbDiskURL = "jdbc:h2:file:./greetdb";
+//        String dbMemoryURL = "jdbc:h2:mem:greetdb";
 
         Jdbi jdbi = Jdbi.create(dbDiskURL, "sa", "");
 
+        Jdbi jdbiPG = Jdbi.create("jdbc:postgresql://localhost/greeter");
+
+
+        // get a handle to the database
         Handle handle = jdbi.open();
 
-        handle.execute("create table if not exists greet ( id integer identity, name varchar(50) )");
+        // create the table if needed
+        handle.execute("create table if not exists greet ( id integer identity, name varchar(50), counter int )");
 
-        UserService userService = new UserServiceWithJdbi(handle);
+        // pass the database connection to the service to use
+//        UserService userService = new UserServiceWithJdbi(handle);
+        UserService userService = new UserServiceWithPG(jdbiPG);
 
         staticFileLocation("/public");
 
